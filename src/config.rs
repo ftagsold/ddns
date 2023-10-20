@@ -18,9 +18,10 @@ impl Display for IpType {
 
 #[derive(Clone, Deserialize)]
 pub struct Config {
+    pub ttl: u64,
     pub sleep: u64,
     pub zone: String,
-    pub name: String,
     pub token: String,
     pub ip_type: IpType,
+    pub sub_domains: Vec<String>,
 }

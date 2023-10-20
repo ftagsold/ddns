@@ -25,20 +25,25 @@ fn main() -> Result<()> {
     debug!("Zone ID: {zone_id}");
 
     loop {
-        let ip = get_ip();
+        let ip = get_ip().expect("Could not get IP");
 
-        if let Some(ip) = ip {
-            debug!("Current IP: {ip}");
+        let records = get_records(&zone_id);
 
-            let record = get_record_id(&zone_id);
+        CONFIG.sub_domains.clone().iter().for_each(|sub_domain| {
+            let record = records.iter().find(|record| {
+                record
+                    .get("name")
+                    .expect("Could not get record name")
+                    .as_str()
+                    .expect("Could not get record name as string")
+                    == sub_domain
+            });
 
             match record {
-                Some(record) => update_record(record, &ip),
-                None => create_record(&zone_id, &ip),
+                Some(record) => update_record(record.clone(), &ip.clone()),
+                None => create_record(sub_domain, &zone_id, &ip.clone()),
             }
-        } else {
-            panic!("Could not get host IP address")
-        }
+        });
 
         sleep(Duration::from_secs(CONFIG.sleep));
     }
@@ -108,9 +113,7 @@ fn get_zone_id() -> String {
         .to_string()
 }
 
-fn get_record_id(zone_id: &str) -> Option<Value> {
-    let ip_type = CONFIG.ip_type.clone().to_string();
-
+fn get_records(zone_id: &str) -> Vec<Value> {
     let resp: Value = ClientBuilder::new()
         .use_rustls_tls()
         .build()
@@ -131,19 +134,21 @@ fn get_record_id(zone_id: &str) -> Option<Value> {
         .expect("Could not get records as array")
         .iter()
         .cloned()
-        .find_map(|record| {
-            if *record
-                .get("type")
-                .expect("Could not get record type")
-                .as_str()
-                .expect("Could not get record type as string")
-                == ip_type
-            {
+        .filter_map(|record| {
+            if CONFIG.sub_domains.contains(
+                &record
+                    .get("name")
+                    .expect("Could not get record name")
+                    .as_str()
+                    .expect("Could not get record name as string")
+                    .to_string(),
+            ) {
                 Some(record)
             } else {
                 None
             }
         })
+        .collect()
 }
 
 fn update_record(record: Value, ip: &str) {
@@ -187,13 +192,13 @@ fn update_record(record: Value, ip: &str) {
     }
 }
 
-fn create_record(zone_id: &str, ip: &str) {
+fn create_record(sub_domain: &str, zone_id: &str, ip: &str) {
     let record = json!(
         {
             "value": ip,
-            "ttl": 3600,
+            "ttl": CONFIG.ttl,
             "type": CONFIG.ip_type.to_string(),
-            "name": CONFIG.name.clone(),
+            "name": sub_domain,
             "zone_id": zone_id
         }
     );
