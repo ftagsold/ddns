@@ -31,12 +31,19 @@ fn main() -> Result<()> {
 
         CONFIG.sub_domains.clone().iter().for_each(|sub_domain| {
             let record = records.iter().find(|record| {
-                record
+                let record_name = record
                     .get("name")
                     .expect("Could not get record name")
                     .as_str()
-                    .expect("Could not get record name as string")
-                    == sub_domain
+                    .expect("Could not get record name as string");
+
+                let record_type = record
+                    .get("type")
+                    .expect("Could not get record type")
+                    .as_str()
+                    .expect("Could not get record type as string");
+
+                record_name == sub_domain && record_type == CONFIG.ip_type.to_string()
             });
 
             match record {
